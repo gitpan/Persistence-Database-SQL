@@ -7,7 +7,7 @@
 # redistribute it and/or modify it under the same terms as Perl
 # itself.
 #
-# $Id: SQL.pm,v 1.7 2000/09/26 21:15:27 cvs Exp $
+# $Id: SQL.pm,v 1.9 2001/07/07 00:37:40 cvs Exp $
 
 package Persistence::Database::SQL;
 
@@ -15,7 +15,7 @@ use Carp;
 use strict;
 use vars qw( $VERSION $AUTOLOAD );
 
-( $VERSION ) = '$Revision: 1.7 $' =~ /\s+([\d\.]+)/;
+( $VERSION ) = '$Revision: 1.9 $' =~ /\s+([\d\.]+)/;
 
 sub new { 
   my ( $class, %args )=@_; my $self=\%args;
@@ -32,19 +32,21 @@ sub new {
   return bless $self, $class; 
 } 
 
-sub search { 
-  my ($self, %args) = @_;
-  my %rows = "Persistence::Object::$self->{Engine}"->values
-    ( __Dope => $self, Key => $args{Key} ); 
-  return undef unless %rows;
-  map { "Persistence::Object::$self->{Engine}"->load 
-	  ( __Dope => $self, __Oid => $_ ) }
-    grep { $rows{$_} =~ /$args{Regex}/s } keys %rows;
+sub select { 
+  my ($self, $where) = @_;
+  return undef unless my @rows 
+    = "Persistence::Object::$self->{Engine}"->select($self, $where); 
+  map { "Persistence::Object::$self->{Engine}"->load(__Dope => $self, 
+						     __Oid  => $_) 
+      } @rows;
 }
 
 sub dbhandle {
   my $self = shift;
   return $self->{__DBHandle};
+}
+
+sub DESTROY {
 }
 
 sub AUTOLOAD {
@@ -234,14 +236,12 @@ automatically created, regardless of the value of this attribute.
 
 =over 2
 
-=item B<search()> 
+=item B<select($where)> 
 
-Searches the database for objects whose field values match the regular
-expression specified.
+Selects objects from the database using the SQL where clause supplied
+in $where.
 
-  $database->search 
-    ( Key => $key,
-      Regex => $regex ); 
+  $database->select("where $key = $value");
 
 =item B<dbhandle()> 
 
