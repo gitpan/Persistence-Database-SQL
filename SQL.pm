@@ -7,7 +7,7 @@
 # redistribute it and/or modify it under the same terms as Perl
 # itself.
 #
-# $Id: SQL.pm,v 1.5 2000/07/30 01:05:14 cvs Exp $
+# $Id: SQL.pm,v 1.7 2000/09/26 21:15:27 cvs Exp $
 
 package Persistence::Database::SQL;
 
@@ -15,7 +15,7 @@ use Carp;
 use strict;
 use vars qw( $VERSION $AUTOLOAD );
 
-( $VERSION ) = '$Revision: 1.5 $' =~ /\s+([\d\.]+)/;
+( $VERSION ) = '$Revision: 1.7 $' =~ /\s+([\d\.]+)/;
 
 sub new { 
   my ( $class, %args )=@_; my $self=\%args;
@@ -90,13 +90,13 @@ Persistence::Database::SQL - Object Persistence in SQL Databases.
     $obj->expire();
   }
 
-  my $dbhandle = $db->handle();
+  my $dbhandle = $db->dbhandle();
 
   my $query = "SELECT oid,* FROM $table_name WHERE $field=$value";
-  my $result = $dbhandle->exec ($query);
-  while (@row = $result->fetchrow()) {
+  my $sth = $dbhandle->prepare($query); $sth->execute();
+  while (@row = $sth->fetchrow()) {
     my $obj = new Persistence::Object::Postgres
-      ( __Dope => $self,
+      ( __Dope => $db,
         __Oid => $row[0] );
     $obj->expire();
   }
@@ -159,19 +159,19 @@ can be later changed with the table() method.
 
 B<Template>
 
-A hashref that maps persistent object key names to database field
-names. Only key names that are mapped in the template will be
-extracted and stored in separate database fields. 
+A reference to a hash that maps persistent object key names to
+database field names. Key names that are mapped in the template will
+be extracted and stored in separate database fields. In the degenerate
+case where you provide an empty hash for the mapping template, only
+the complete object dump is stored.
 
-The whole object will always be stored in a database field called
-__dump, which will be created if it doesn't exist. The user must be
-running with sufficient priveleges to create the __dump field if it
-doesn't exist.
+The complete object dump will always be stored, in a database field
+called __dump, which will be created if it doesn't exist. If the
+database user doesn't have sufficient priveleges to alter tables, and
+the __dump field doesn't exist in the database, commit() will fail.
 
-In the degenerate case where you provide an empty template for the
-mapping template, only the complete object dump is stored. This
-attribute is required, and can be later changed with the template()
-method.
+This attribute is required, and can be later changed with the
+template() method.
 
 B<Host>
 
