@@ -7,7 +7,7 @@
 # redistribute it and/or modify it under the same terms as Perl
 # itself.
 #
-# $Id: SQL.pm,v 1.4 2000/07/29 06:13:37 cvs Exp $
+# $Id: SQL.pm,v 1.5 2000/07/30 01:05:14 cvs Exp $
 
 package Persistence::Database::SQL;
 
@@ -15,7 +15,7 @@ use Carp;
 use strict;
 use vars qw( $VERSION $AUTOLOAD );
 
-( $VERSION ) = '$Revision: 1.4 $' =~ /\s+([\d\.]+)/;
+( $VERSION ) = '$Revision: 1.5 $' =~ /\s+([\d\.]+)/;
 
 sub new { 
   my ( $class, %args )=@_; my $self=\%args;
@@ -27,6 +27,8 @@ sub new {
     or croak "Could not load $self->{Engine} object class.";
   $self->{__DBHandle} = "Persistence::Object::$self->{Engine}"->dbconnect ($self) 
     or croak "Could not initialize database connection."; 
+  $self->{Createfields} = !(exists $args{Createfields} && $args{Createfields}==0);
+  $self->{Createtables} = !(exists $args{Createtables} && $args{Createtables}==0);
   return bless $self, $class; 
 } 
 
@@ -46,10 +48,13 @@ sub dbhandle {
 }
 
 sub AUTOLOAD {
-  my $self = shift; (my $auto = $AUTOLOAD) =~ s/.*:://;
-  if ($auto =~ /^(template|table|host|port|username|password)$/) {
-    $self->{"\U$auto"} = shift;
-    $self->{Template} = %$self->{Template} if $auto eq 'template';
+  my ($self, $val) = @_; (my $auto = $AUTOLOAD) =~ s/.*:://;
+  if ($auto =~ /^(template|table|create(fields|tables))$/) {
+    if (defined $val) {
+      $self->{"\u$auto"} = $val;
+      $self->{Template} = %$self->{Template} if $auto eq 'template';
+    }
+    return $self->{"\u$auto"};
   }
   else {
     croak "Could not AUTOLOAD method $auto.";
@@ -116,10 +121,20 @@ your database of persistent objects.
 Creates a new Database Object.
 
   my $database = new Persistence::Database::SQL
-    ( Engine => 'Postgres',
+    ( 
+      Engine => 'Postgres',           # Required
       Database => $database_name, 
       Table => $table_name,
-      Template => $template_hashref );
+      Template => $template_hashref,
+
+      Host => $db_host,               # Optional
+      Port => $db_port,
+      Username => $db_username,
+      Password => $db_password 
+
+      Createfields => $boolean,
+      Createtables => $boolean
+    );
 
 Takes a hash argument with following possible keys:
 
@@ -137,16 +152,21 @@ for the user. This attribute is required.
 
 B<Table>
 
-The table within the database to use for object storage. This
-attribute is required, and can be later changed with the table()
-method.
+The table within the database to use for object storage. A table by
+this name must exist previously within the DBMS system in use with
+sufficient priveleges for the user. This attribute is required, and
+can be later changed with the table() method.
 
 B<Template>
 
 A hashref that maps persistent object key names to database field
 names. Only key names that are mapped in the template will be
-extracted and stored in separate database fields. The whole object
-will always be stored. 
+extracted and stored in separate database fields. 
+
+The whole object will always be stored in a database field called
+__dump, which will be created if it doesn't exist. The user must be
+running with sufficient priveleges to create the __dump field if it
+doesn't exist.
 
 In the degenerate case where you provide an empty template for the
 mapping template, only the complete object dump is stored. This
@@ -176,6 +196,37 @@ B<Password>
 The password for the user. A default value may be provided by the
 DBMS-specific object class if this attribute is omitted, though it
 would probably be an empty string.
+
+B<Createfields> 
+
+Whether or not new fields should be created in the database to meet
+the needs of complying with the mapping template. If true, fields will
+silently be created in the database. For this to work, the database
+user must have sufficient priveleges within the database system.
+
+If false, data will not be stored in a separate database field even if
+a mapping for it exists in the template, unless the field in question
+already exists in the database. 
+
+The default is true. This attribute can be queried and changed on the
+fly with the createfields() method.
+
+B<Createtables> 
+
+Whether or not new tables should be created in the database if they
+are referenced but don't already exist. If true, tables will
+automatically be created as needed. For this to work, the database
+user must have sufficient priveleges within the database system.
+
+If false, tables will not be automatically created, which will cause
+commit() and load() to fail if asked to operate on a nonexistent
+table.
+
+The default is true. This attribute can be queried and changed on the
+fly with the createtables() method. 
+
+NOTE: This is not yet implemented. For the moment, tables are NOT
+automatically created, regardless of the value of this attribute.
 
 =back 
 
